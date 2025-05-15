@@ -33,7 +33,8 @@ const Chatbot = ({ onClose }: ChatbotProps) => {
 
   const generateGeminiResponse = async (prompt: string): Promise<string> => {
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`, {
+      // Updated API endpoint to use "gemini-1.0-pro" which is the correct model name
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
