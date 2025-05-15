@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 interface Message {
   id: number;
@@ -27,32 +28,61 @@ const Chatbot = ({ onClose }: ChatbotProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Sample responses based on keywords
-  const getBotResponse = (message: string): string => {
-    const lowerCaseMessage = message.toLowerCase();
-    
-    if (lowerCaseMessage.includes("portfolio") || lowerCaseMessage.includes("assets")) {
-      return "Your portfolio is showing strong performance with a 5.2% increase since last month. Your stocks are performing particularly well, especially in the technology sector.";
-    } else if (lowerCaseMessage.includes("stock") || lowerCaseMessage.includes("invest")) {
-      return "Based on your risk profile and financial goals, I'd recommend allocating more to growth stocks in the technology and healthcare sectors. Would you like specific recommendations?";
-    } else if (lowerCaseMessage.includes("mutual fund")) {
-      return "Your mutual funds account for 25% of your portfolio. The Vanguard Growth Fund has been your best performer with a 12% return this year.";
-    } else if (lowerCaseMessage.includes("fixed deposit") || lowerCaseMessage.includes("fd")) {
-      return "Your fixed deposits make up 20% of your portfolio with an average interest rate of 5.2%. The next FD matures in 45 days.";
-    } else if (lowerCaseMessage.includes("risk")) {
-      return "Your current portfolio has a moderate risk level. Based on your age and financial goals, this is well-aligned with your investment strategy.";
-    } else if (lowerCaseMessage.includes("retire") || lowerCaseMessage.includes("retirement")) {
-      return "Your retirement savings are on track. Based on your current contributions and investment growth, you're projected to reach your retirement goal of $2.5M by age 58.";
-    } else if (lowerCaseMessage.includes("tax") || lowerCaseMessage.includes("taxes")) {
-      return "I recommend maximizing your tax-advantaged accounts first. You still have $4,000 in contribution room in your IRA this year.";
-    } else if (lowerCaseMessage.includes("recommend") || lowerCaseMessage.includes("advice")) {
-      return "Based on your portfolio and market conditions, I recommend increasing your exposure to dividend-paying stocks and considering adding more international diversification.";
-    } else {
-      return "I'm here to help with any questions about your investments, portfolio performance, or financial planning. What specific information would you like to know?";
+  // The API key for Gemini
+  const API_KEY = "AIzaSyA8qpo5B26cchXL2yFXbJYTQuoYoj8geLc";
+
+  const generateGeminiResponse = async (prompt: string): Promise<string> => {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are a professional financial advisor assistant. The user's name is Alex. Provide helpful financial advice based on the following query: ${prompt}
+                  
+                  Include information about Alex's portfolio if relevant:
+                  - Stocks: 40% allocation (Technology sector performing well at +8.2%)
+                  - Mutual Funds: 25% allocation (Vanguard Growth Fund: +12% YTD)
+                  - Fixed Deposits: 20% allocation (5.2% avg interest, next maturity in 45 days)
+                  - Bonds: 10% allocation (Treasury bonds, 4.1% yield)
+                  - Cash: 5% allocation
+                  
+                  Risk profile: Moderate
+                  Retirement goal: $2.5M by age 58
+                  Current progress: On track
+                  
+                  Keep your response concise, professional, and tailored to the portfolio details above.`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 200,
+          }
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error("Gemini API error:", data.error);
+        return "I'm sorry, I encountered an issue while processing your request. Please try again later.";
+      }
+      
+      return data.candidates[0].content.parts[0].text;
+    } catch (error) {
+      console.error("Error calling Gemini API:", error);
+      return "I'm sorry, I encountered an issue while processing your request. Please try again later.";
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
@@ -65,19 +95,30 @@ const Chatbot = ({ onClose }: ChatbotProps) => {
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     
-    // Simulate bot typing
+    // Show typing indicator
     setIsTyping(true);
     
-    // Simulate bot response after a delay
-    setTimeout(() => {
+    try {
+      // Generate response using Gemini API
+      const response = await generateGeminiResponse(input);
+      
+      // Add bot message with the response
       const botMessage: Message = {
         id: messages.length + 2,
-        text: getBotResponse(input),
+        text: response,
         sender: "bot"
       };
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error generating response:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate a response. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
+    }
   };
 
   // Scroll to bottom when messages change
@@ -147,6 +188,7 @@ const Chatbot = ({ onClose }: ChatbotProps) => {
         <Button 
           type="submit" 
           className="bg-wealth-medium-green hover:bg-wealth-dark-green text-white"
+          disabled={isTyping}
         >
           Send
         </Button>
